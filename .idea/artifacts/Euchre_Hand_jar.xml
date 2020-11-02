@@ -1,8 +1,0 @@
-<component name="ArtifactManager">
-  <artifact type="jar" build-on-make="true" name="Euchre-Hand:jar">
-    <output-path>$PROJECT_DIR$/out/artifacts/Euchre_Hand_jar</output-path>
-    <root id="archive" name="Euchre-Hand.jar">
-      <element id="module-output" name="Euchre-Hand" />
-    </root>
-  </artifact>
-</component>
