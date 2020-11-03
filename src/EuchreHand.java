@@ -11,6 +11,10 @@ public class EuchreHand {
 
     private static final int playerHandSize = 5; // Each player can only have 5 cards in their hand
     private static final int PLAYER_COUNT = 4; // Euchre is played with 4 players
+    private static final int AI_CALL_TRUMP_THRESHOLD = 14; // Average AI card value for computer player to order the kitty card
+    private static final int AI_LEAD_TRUMP_THRESHOLD = 20; //
+    private static final int AI_LEAD_NONTRUMP_THRESHOLD = 14;
+    private static final int JACK_VALUE = 11; // used to determine cards that are the "right" and "left"
 
     private EuchreDeck deck = new EuchreDeck(); // deck consisting of 9, 10, Jack, Queen, King, and Ace of each suit
     private Player[] players = new Player[PLAYER_COUNT]; // holds the 4 player objects
@@ -26,6 +30,7 @@ public class EuchreHand {
     private int team2Tricks = 0; // A team needs a majority of tricks to win the hand
 
     private ArrayList<CardInPlay> cardsInPlay = new ArrayList<>(PLAYER_COUNT); // used during a trick to determine which card wins
+
 
     /**
      * CardInPlay is an inner class that
@@ -61,11 +66,12 @@ public class EuchreHand {
         System.out.println("What is your name?");
         Scanner keyboard = new Scanner(System.in);
         String response = keyboard.nextLine();
-        players[0] = new Player(1, false, response);
+        players[0] = new Player(1, false, response); // Human player
         players[1] = new Player(2, true, "Opponent 1");
         players[2] = new Player(1, true, "Partner");
         players[3] = new Player(2, true, "Opponent 2");
 
+        // Situate players at the imaginary table
         players[0].setNextTo(players[1]);
         players[1].setNextTo(players[2]);
         players[2].setNextTo(players[3]);
@@ -80,7 +86,7 @@ public class EuchreHand {
     private void deal() {
         deck.shuffle();
         Random r = new Random();
-        dealer = players[r.nextInt((3-1) + 1) + 1];
+        dealer = players[r.nextInt(players.length)]; // Chooses a random player to deal
         for (Player player : players) {
             for (int i = 0; i < playerHandSize; i++) {
                 player.addCardToHand(deck.getTopCard());
@@ -101,170 +107,6 @@ public class EuchreHand {
     }
 
     /**
-     * decideTrumpAsHumanWithKitty takes input from a human
-     * player to see if they want to order (or, if they are the dealer, pick up)
-     * the kittyCard.
-     * @param currentPlayer Human player of interest
-     * @return true if trump is decided, false if not
-     */
-    private boolean decideTrumpAsHumanWithKitty(Player currentPlayer){
-        System.out.println("You have the following hand: ");
-        currentPlayer.printHand();
-        ArrayList<EuchreCard.Suit> suitsToCall = new ArrayList<>(4);
-        boolean trumpDecided = false;
-        for (EuchreCard card : currentPlayer.hand){
-            if (card.getSuit() == kittyCard.getSuit() && !suitsToCall.contains(card.getSuit())){
-                suitsToCall.add(card.getSuit());
-            }
-        }
-        if (suitsToCall.contains(kittyCard.getSuit())) {
-            System.out.println("Order the " + kittyCard.toString() + " to " + dealer.getName() + "? Y/N");
-            Scanner keyboard = new Scanner(System.in);
-            boolean continueReading = false;
-            do {
-                String response = keyboard.nextLine();
-                if (response.equalsIgnoreCase("y")){
-                    orderer = currentPlayer;
-                    cardOrdered();
-                    trumpDecided = true;
-                    continueReading = false;
-                } else if (response.equalsIgnoreCase("n")){
-                    continueReading = false;
-                } else{
-                    System.out.println("Invalid response entered");
-                    continueReading = true;
-                }
-            }while (continueReading);
-        } else{
-            System.out.println("You must pass because you do not have any trump cards");
-        }
-        return trumpDecided;
-    }
-
-    /**
-     * decideTrumpAsAIWithKitty determines whether a computer player
-     * orders (or, if they are the dealer, picks up) the kittyCard.
-     * @param currentPlayer AI player of interest
-     * @return true if trump is decided, false if not
-     */
-    private boolean decideTrumpAsAIWithKitty(Player currentPlayer){
-        setAIValuesWithTrump(currentPlayer);
-        int sumOfValues = 0;
-        boolean trumpDecided = false;
-        for (EuchreCard card : currentPlayer.hand){
-            sumOfValues += card.getAIValue();
-        }
-        if (sumOfValues/5 >= 14){ // Computer orders card if they have a high average card value for the trump.
-            orderer = currentPlayer;
-            cardOrdered();
-            trumpDecided = true;
-        } else{
-            System.out.println(currentPlayer.getName() + " passes.");
-        }
-        return trumpDecided;
-    }
-
-    /**
-     * decideTrumpAsHumanNoKitty takes input from a human
-     * player to see if they want to call trump after the kittyCard
-     * has been turned down.
-     * @param currentPlayer Human player of interest
-     * @return true if trump is decided, false if not
-     */
-    private boolean decideTrumpAsHumanNoKitty(Player currentPlayer){
-        boolean trumpDecided = false;
-        System.out.println("Set trump? Cards in hand: ");
-        currentPlayer.printHand();
-        System.out.println("Suits available to call: ");
-        ArrayList<EuchreCard.Suit> suitsToCall = new ArrayList<>(4);
-        for (EuchreCard card : currentPlayer.hand){
-            if (card.getSuit() != kittyCard.getSuit() && !suitsToCall.contains(card.getSuit())){
-                suitsToCall.add(card.getSuit());
-            }
-        }
-        System.out.println(suitsToCall + " or enter N for no");
-        Scanner keyboard = new Scanner(System.in);
-        boolean continueReading = false;
-        do {
-            String response = keyboard.nextLine();
-            for (EuchreCard.Suit suit : suitsToCall){
-                if (response.equalsIgnoreCase(suit.getName())){
-                    trump = suit;
-                    trumpDecided = true;
-                    continueReading = false;
-                    System.out.println(currentPlayer.getName() + " calls " + trump.getName() + " as trump");
-                }
-            }
-            if (!trumpDecided){
-                if (response.equalsIgnoreCase("n")) {
-                    continueReading = false;
-                } else{
-                    System.out.println("Invalid response entered");
-                    continueReading = true;
-                }
-            }
-        } while(continueReading);
-        return trumpDecided;
-    }
-
-    /**
-     * decideTrumpAsAINoKitty determines whether a computer player
-     * calls trump after the kittyCard has been turned down.
-     * @param currentPlayer AI player of interest
-     * @return true if trump decided, false if not
-     */
-    private boolean decideTrumpAsAINoKitty(Player currentPlayer){
-        boolean trumpDecided = false;
-        int largestAverage = 0; // anything will be higher
-        EuchreCard.Suit largestAvgSuit = null;
-        ArrayList<EuchreCard.Suit> suitsToCall = new ArrayList<>(4);
-        for (EuchreCard card : currentPlayer.hand) {
-            if (card.getSuit() != kittyCard.getSuit() && !suitsToCall.contains(card.getSuit())) {
-                suitsToCall.add(card.getSuit());
-            }
-        }
-        for (EuchreCard.Suit suit : suitsToCall){
-            trump = suit;
-            int sum = 0;
-            setAIValuesWithTrump(currentPlayer);
-            for (EuchreCard card : currentPlayer.hand){
-                sum += card.getAIValue();
-            }
-            if (sum/5 > largestAverage){
-                largestAverage = sum/5;
-                largestAvgSuit = suit;
-            }
-        }
-        if (largestAverage > 15){
-            trump = largestAvgSuit;
-            trumpDecided = true;
-            System.out.println(currentPlayer.getName() + " calls " + trump.getName() + " as trump");
-        } else {
-            System.out.println(currentPlayer.getName() + " passes.");
-            trump = null;
-        }
-        return trumpDecided;
-    }
-
-    /**
-     * changeTheLeft temporarily changes the suit of "the
-     * left" after trump has been decided, and sets a temporary name
-     * for it so that the card can still be referenced
-     * as its original suit.
-     */
-    private void changeTheLeft(){
-        for (Player player : players) {
-            for (EuchreCard card : player.hand) {
-                boolean cardIsLeft = card.getSuit().getColor().equals(trump.getColor()) && card.getRank().getValue() == 11;
-                if (cardIsLeft) {
-                    card.setTempName(card.getSuit().getName().toUpperCase());
-                    card.setSuit(trump);
-                }
-            }
-        }
-    }
-
-    /**
      * decideTrump cycles through each Player twice, first determining
      * if the Player wants to order the kittyCard, then determining if
      * they want to call trump, until trump is decided. Once trump is decided,
@@ -273,14 +115,15 @@ public class EuchreHand {
      */
     private void decideTrump(){
         findKittyCard();
-        Player currentPlayer = dealer.getNextTo();
+        Player currentPlayer = dealer.getNextTo(); // start at the player next to the dealer
         int decided = 0;
         boolean trumpDecided = false;
         trump = kittyCard.getSuit();
 
-        while (decided < 4 && !trumpDecided){
+        // first cycle - players can only decide on kitty card
+        while (decided < players.length && !trumpDecided){
             if (!currentPlayer.computer){
-               trumpDecided = decideTrumpAsHumanWithKitty(currentPlayer);
+                trumpDecided = decideTrumpAsHumanWithKitty(currentPlayer);
             } else{
                 trumpDecided = decideTrumpAsAIWithKitty(currentPlayer);
             }
@@ -288,7 +131,8 @@ public class EuchreHand {
             decided += 1;
         }
 
-        while (4 <= decided && decided < 8 && !trumpDecided){
+        // second cycle - players can call trump on any suit besides the kitty card suit
+        while (players.length <= decided && decided < 8 && !trumpDecided){
             if (!currentPlayer.computer){
                 trumpDecided = decideTrumpAsHumanNoKitty(currentPlayer);
             } else{
@@ -306,12 +150,277 @@ public class EuchreHand {
     }
 
     /**
+     * decideTrumpAsHumanWithKitty takes input from a human
+     * player to see if they want to order (or, if they are the dealer, pick up)
+     * the kittyCard.
+     * @param currentPlayer Human player of interest
+     * @return true if trump is decided, false if not
+     */
+    private boolean decideTrumpAsHumanWithKitty(Player currentPlayer){
+        boolean trumpDecided = false;
+
+        System.out.println("You have the following hand: ");
+        currentPlayer.printHand();
+
+        ArrayList<EuchreCard.Suit> suitsToCall = new ArrayList<>(4); // Holds what suits the player can call as trump
+        for (EuchreCard card : currentPlayer.hand){
+            if (card.getSuit() == kittyCard.getSuit() && !suitsToCall.contains(card.getSuit())){ // Player must have a card that has the same suit as the kitty card to order it
+                suitsToCall.add(card.getSuit());
+            }
+        }
+        if (suitsToCall.contains(kittyCard.getSuit())) {
+            System.out.println("Order the " + kittyCard.toString() + " to " + dealer.getName() + "? Y/N");
+            Scanner keyboard = new Scanner(System.in);
+            boolean continueReading = false;
+            do {
+                String response = keyboard.nextLine();
+                if (response.equalsIgnoreCase("y")){
+                    orderer = currentPlayer;
+                    cardOrdered(); // dealer must pick up the kitty card
+                    trumpDecided = true;
+                    continueReading = false;
+                } else if (response.equalsIgnoreCase("n")){
+                    continueReading = false;
+                } else{
+                    System.out.println("Invalid response entered");
+                    continueReading = true;
+                }
+            }while (continueReading); // Loop until valid response is entered
+        } else{
+            System.out.println("You must pass because you do not have any trump cards");
+        }
+        return trumpDecided; // if false, other players continue to decide trump
+    }
+
+    /**
+     * decideTrumpAsAIWithKitty determines whether a computer player
+     * orders (or, if they are the dealer, picks up) the kittyCard.
+     * @param currentPlayer AI player of interest
+     * @return true if trump is decided, false if not
+     */
+    private boolean decideTrumpAsAIWithKitty(Player currentPlayer){
+        setAIValuesWithTrump(currentPlayer);
+        int sumOfValues = 0;
+        boolean trumpDecided = false;
+        for (EuchreCard card : currentPlayer.hand){
+            sumOfValues += card.getAIValue();
+        }
+        if (sumOfValues/currentPlayer.hand.size() >= AI_CALL_TRUMP_THRESHOLD){ // Computer orders card if they have a high average card value for the trump.
+            orderer = currentPlayer;
+            cardOrdered(); // dealer must pick up the kitty card
+            trumpDecided = true;
+        } else{
+            System.out.println(currentPlayer.getName() + " passes.");
+        }
+        return trumpDecided; // if false, other players continue to decide trump
+    }
+
+    /**
+     * decideTrumpAsHumanNoKitty takes input from a human
+     * player to see if they want to call trump after the kittyCard
+     * has been turned down.
+     * @param currentPlayer Human player of interest
+     * @return true if trump is decided, false if not
+     */
+    private boolean decideTrumpAsHumanNoKitty(Player currentPlayer){
+        boolean trumpDecided = false;
+
+        System.out.println("Set trump? Cards in hand: ");
+        currentPlayer.printHand();
+
+        System.out.println("Suits available to call: ");
+        ArrayList<EuchreCard.Suit> suitsToCall = new ArrayList<>(4);
+        for (EuchreCard card : currentPlayer.hand){
+            if (card.getSuit() != kittyCard.getSuit() && !suitsToCall.contains(card.getSuit())){ // cannot call kitty card suit after it has been turned down
+                suitsToCall.add(card.getSuit());
+            }
+        }
+        System.out.println(suitsToCall + " or enter N for no");
+
+        Scanner keyboard = new Scanner(System.in);
+        boolean continueReading = false;
+        do {
+            String response = keyboard.nextLine();
+            for (EuchreCard.Suit suit : suitsToCall){
+                if (response.equalsIgnoreCase(suit.getName())){
+                    trump = suit;
+                    trumpDecided = true;
+                    continueReading = false;
+                    System.out.println(currentPlayer.getName() + " calls " + trump.getName() + " as trump");
+                }
+            }
+            if (!trumpDecided){ // player did not enter one of their suits as a response
+                if (response.equalsIgnoreCase("n")) {
+                    continueReading = false;
+                } else{
+                    System.out.println("Invalid response entered");
+                    continueReading = true;
+                }
+            }
+        } while(continueReading); // loop until valid response is entered
+        return trumpDecided; // if false, other players continue deciding trump
+    }
+
+    /**
+     * decideTrumpAsAINoKitty determines whether a computer player
+     * calls trump after the kittyCard has been turned down.
+     * @param currentPlayer AI player of interest
+     * @return true if trump decided, false if not
+     */
+    private boolean decideTrumpAsAINoKitty(Player currentPlayer){
+        boolean trumpDecided = false;
+        int largestAverage = 0; // anything will be higher
+        EuchreCard.Suit largestAvgSuit = null;
+
+        // find suits that AI player has ability to call as trump
+        ArrayList<EuchreCard.Suit> suitsToCall = new ArrayList<>(4);
+        for (EuchreCard card : currentPlayer.hand) {
+            if (card.getSuit() != kittyCard.getSuit() && !suitsToCall.contains(card.getSuit())) {
+                suitsToCall.add(card.getSuit());
+            }
+        }
+
+        for (EuchreCard.Suit suit : suitsToCall){
+            trump = suit; // temporarily set suit as trump
+            int sum = 0;
+            setAIValuesWithTrump(currentPlayer); // check the card values for temporary trump
+            for (EuchreCard card : currentPlayer.hand){
+                sum += card.getAIValue();
+            }
+            if (sum/5 > largestAverage){ // find the trump that yields the largest average card value
+                largestAverage = sum/5;
+                largestAvgSuit = suit;
+            }
+        }
+        if (largestAverage > AI_CALL_TRUMP_THRESHOLD){ // AI calls trump if they have a high average card value
+            trump = largestAvgSuit;
+            trumpDecided = true;
+            System.out.println(currentPlayer.getName() + " calls " + trump.getName() + " as trump");
+        } else {
+            System.out.println(currentPlayer.getName() + " passes.");
+            trump = null;
+        }
+        return trumpDecided; // if false, other players continue to decide trump
+    }
+
+    /**
+     * changeTheLeft temporarily changes the suit of "the
+     * left" after trump has been decided, and sets a temporary name
+     * for it so that the card can still be referenced
+     * as its original suit.
+     */
+    private void changeTheLeft(){
+        for (Player player : players) {
+            for (EuchreCard card : player.hand) {
+                boolean cardIsLeft = card.getSuit().getColor().equals(trump.getColor()) && card.getRank().getValue() == JACK_VALUE;
+                if (cardIsLeft) {
+                    card.setTempName(card.getSuit().getName().toUpperCase());
+                    card.setSuit(trump);
+                }
+            }
+        }
+    }
+
+    /**
+     * cardOrdered determines what card the dealer
+     * replaces with the kittyCard when it is ordered,
+     * depending on whether the dealer is human or AI.
+     */
+    private void cardOrdered(){
+        System.out.println(dealer.getName() + " was ordered the " + kittyCard.toString() + " by " + orderer.getName());
+        if (!dealer.computer){
+            cardOrderedToHuman(dealer);
+        } else{
+            cardOrderedToAI(dealer);
+        }
+    }
+
+    /**
+     * cardOrderedToHuman takes input from a human
+     * Player to determine what card they replace with the
+     * kitty card when a player orders it to them.
+     * @param dealer Human dealer of interest
+     */
+    private void cardOrderedToHuman(Player dealer){
+        System.out.println("Choose a card to replace with the " + kittyCard.toString());
+        dealer.printHand();
+        Scanner keyboard = new Scanner(System.in);
+        boolean continueReading = false;
+        do {
+            int response = keyboard.nextInt();
+            if (1 <= response && response <= playerHandSize) {
+                dealer.replaceCard(response - 1, kittyCard);
+                continueReading = false;
+            } else {
+                System.out.println("Invalid response entered.");
+                continueReading = true;
+            }
+        } while (continueReading); // loop until a valid response is entered
+    }
+
+    /**
+     * cardOrderedToAI determines what card a computer
+     * Player replaces with the kittyCard when another player orders
+     * it to them.
+     * @param dealer AI dealer of interest
+     */
+    private void cardOrderedToAI(Player dealer){
+        setAIValuesWithTrump(dealer);
+        int lowestValue = 23; // anything will be lower
+        int indexToReplace = -1;
+
+        // find the lowest value card and replace it with the kitty card
+        for (int i=0;i<playerHandSize;i++){
+            if (dealer.hand.get(i).getAIValue() < lowestValue){
+                lowestValue = dealer.hand.get(i).getAIValue();
+                indexToReplace = i;
+            }
+        }
+        dealer.replaceCard(indexToReplace, kittyCard);
+        System.out.println(dealer.getName() + " replaced a card with the " + kittyCard.toString());
+        System.out.println();
+    }
+
+    /**
+     * playCards cycles through each Player and allows each to
+     * play a card. Then, the cards in play are compared
+     * to see who wins the trick.
+     * @param afterFirstRound true if the first trick has already been played
+     */
+    private void playCards(boolean afterFirstRound){
+        Player currentPlayer = dealer.getNextTo();
+        if (afterFirstRound){
+            currentPlayer = trickWinner; // player who wins a trick leads
+        }
+        if (!currentPlayer.computer){
+            leadCardAsHuman(currentPlayer);
+        } else{
+            leadCardAsAI(currentPlayer);
+        }
+        setCardValuesForAllPlayers();
+
+        // cycle through the other players to play cards
+        for (int i=0;i<3;i++) {
+            currentPlayer = currentPlayer.getNextTo();
+            ArrayList<EuchreCard> cardsToPlay = cardsAbleToPlay(currentPlayer);
+            if (!currentPlayer.computer){
+                playCardAsHuman(currentPlayer, cardsToPlay);
+            } else{
+                playCardAsAI(currentPlayer, cardsToPlay);
+            }
+        }
+        compareCardsInPlay(); // see who wins the trick
+    }
+
+    /**
      * leadCardAsAI determines what card a computer
      * Player leads if they are the first to play
      * during a trick.
      * @param currentPlayer AI Player of interest
      */
     private void leadCardAsAI(Player currentPlayer){
+
+        // Shortcut if the player only has one card
         if (currentPlayer.hand.size() == 1){
             EuchreCard cardToPlay = currentPlayer.playCard(0);
             led = cardToPlay.getSuit();
@@ -319,15 +428,19 @@ public class EuchreHand {
             cardsInPlay.add(new CardInPlay(cardToPlay, currentPlayer));
         }
         else {
-            int highestValue = -1;
+
+            int highestValue = -1; // anything will be higher
             int indexOfNonTrump = -1;
-            int highestTrumpValue = -1;
+            int highestTrumpValue = -1; // anything will be higher
             int indexOfHTrump = -1;
+
             EuchreCard cardToPlay = null;
             EuchreCard highestNonTrump = null;
             EuchreCard highestTrump = null;
+
             setAIValuesWithTrump(currentPlayer);
             for (EuchreCard card : currentPlayer.hand) {
+                // determine the best trump and non-trump cards the player has
                 if (card.getAIValue() > highestValue && card.getSuit() != trump) {
                     highestValue = card.getAIValue();
                     highestNonTrump = card;
@@ -339,13 +452,13 @@ public class EuchreHand {
                 }
             }
             int indexOfCard = -1;
-            if (highestValue == 14) {
+            if (highestValue >= AI_LEAD_NONTRUMP_THRESHOLD) { // player has a good non-trump card
                 cardToPlay = highestNonTrump;
                 indexOfCard = indexOfNonTrump;
-            } else if (highestTrumpValue > 20) {
+            } else if (highestTrumpValue >= AI_LEAD_TRUMP_THRESHOLD) { // player has a good trump card
                 cardToPlay = highestTrump;
                 indexOfCard = indexOfHTrump;
-            } else {
+            } else { // player does not have cards that meet either threshold, so they choose a random one
                 Random r = new Random();
                 indexOfCard = r.nextInt((currentPlayer.hand.size()-1) + 1) + 1;
                 cardToPlay = currentPlayer.hand.get(indexOfCard);
@@ -371,7 +484,7 @@ public class EuchreHand {
         int response;
         do{
             response = keyboard.nextInt();
-        } while(response < 1 || response > 5);
+        } while(response < 1 || response > currentPlayer.hand.size()); // would be an invalid response
         EuchreCard cardToPlay = currentPlayer.playCard(response-1);
         led = cardToPlay.getSuit();
         setOneCardValue(cardToPlay);
@@ -385,6 +498,8 @@ public class EuchreHand {
      * @param cardsToPlay cards available for the player to play
      */
     private void playCardAsAI(Player currentPlayer, ArrayList<EuchreCard> cardsToPlay){
+
+        // player will throw off their worst card if their partner is winning the trick
         if (inWinningPosition(currentPlayer)){
             int lowestValue = 23; // anything will be lower
             EuchreCard lowestCard = null;
@@ -397,7 +512,10 @@ public class EuchreHand {
             int indexOfCard = currentPlayer.hand.indexOf(lowestCard);
             currentPlayer.playCard(indexOfCard);
             cardsInPlay.add(new CardInPlay(lowestCard, currentPlayer));
-        } else {
+        }
+
+        // player will play a card that wins if they are losing (or will play their worst card if they don't have a better one)
+        else {
             int highestValue = -1; // anything will be higher
             EuchreCard highestCard = null;
             for (EuchreCard card : cardsToPlay) {
@@ -406,11 +524,16 @@ public class EuchreHand {
                     highestCard = card;
                 }
             }
+
+            // play a card if it wins the trick
             if (highestCard.getEuchreValue() > bestValue()) {
                 int indexOfCard = currentPlayer.hand.indexOf(highestCard);
                 currentPlayer.playCard(indexOfCard);
                 cardsInPlay.add(new CardInPlay(highestCard, currentPlayer));
-            } else {
+            }
+
+            // throw the worst card if they cannot win
+            else {
                 int lowestValue = 23; // anything will be lower
                 EuchreCard lowestCard = null;
                 for (EuchreCard card : cardsToPlay) {
@@ -439,25 +562,30 @@ public class EuchreHand {
             System.out.println("[" + card.card.toString() + "] - " + card.getPlayerWhoPlayed().getName());
         }
         System.out.println();
+
         System.out.println("Trump is " + trump.getName() + ".");
         System.out.println();
+
         System.out.println("Your current cards are: ");
         currentPlayer.printHand();
+
         System.out.println("You can play: ");
         for (int j=0;j<cardsToPlay.size();j++){
             System.out.print(cardsToPlay.get(j).toString() + "[" + (j+1) + "] ");
         }
         System.out.println();
         System.out.println();
+
         System.out.println("Type a number to select your card.");
         Scanner keyboard = new Scanner(System.in);
         int response;
         do{
             response = keyboard.nextInt();
-        } while(response < 1 || response > cardsToPlay.size());
+        } while(response < 1 || response > cardsToPlay.size()); // would be invalid response if otherwise
+
         EuchreCard cardToPlay = cardsToPlay.get(response - 1);
         int indexOfCard = -1;
-        for (EuchreCard card : currentPlayer.hand){
+        for (EuchreCard card : currentPlayer.hand){ // find the card in the player's hand
             if (card.getSuit() == cardToPlay.getSuit() && card.getRank() == cardToPlay.getRank()){
                 indexOfCard = currentPlayer.hand.indexOf(card);
             }
@@ -481,38 +609,9 @@ public class EuchreHand {
             }
         }
         if (cardsToPlay.size() == 0){ // Cannot follow suit
-            cardsToPlay.addAll(currentPlayer.hand);
+            cardsToPlay.addAll(currentPlayer.hand); // Can play any card if so
         }
         return cardsToPlay;
-    }
-
-    /**
-     * playCards cycles through each Player and allows each to
-     * play a card. Then, the cards in play are compared
-     * to see who wins the trick.
-     * @param afterFirstRound true if the first trick has already been played
-     */
-    private void playCards(boolean afterFirstRound){
-        Player currentPlayer = dealer.getNextTo();
-        if (afterFirstRound){
-            currentPlayer = trickWinner;
-        }
-        if (!currentPlayer.computer){
-            leadCardAsHuman(currentPlayer);
-        } else{
-            leadCardAsAI(currentPlayer);
-        }
-        setCardValuesForAllPlayers();
-        for (int i=0;i<3;i++) {
-            currentPlayer = currentPlayer.getNextTo();
-            ArrayList<EuchreCard> cardsToPlay = cardsAbleToPlay(currentPlayer);
-            if (!currentPlayer.computer){
-                playCardAsHuman(currentPlayer, cardsToPlay);
-            } else{
-                playCardAsAI(currentPlayer, cardsToPlay);
-            }
-        }
-        compareCardsInPlay();
     }
 
     /**
@@ -531,90 +630,6 @@ public class EuchreHand {
             }
         }
         return highest;
-    }
-
-    /**
-     * cardOrderedToHuman takes input from a human
-     * Player to determine what card they replace with the
-     * kitty card when a player orders it to them.
-     * @param dealer Human dealer of interest
-     */
-    private void cardOrderedToHuman(Player dealer){
-        System.out.println("Choose a card to replace with the " + kittyCard.toString());
-        dealer.printHand();
-        Scanner keyboard = new Scanner(System.in);
-        boolean continueReading = false;
-        do {
-            int response = keyboard.nextInt();
-            if (1 <= response && response <= 5) {
-                dealer.replaceCard(response - 1, kittyCard);
-                continueReading = false;
-            } else {
-                System.out.println("Invalid response entered.");
-                continueReading = true;
-            }
-        } while (continueReading);
-    }
-
-    /**
-     * cardOrderedToAI determines what card a computer
-     * Player replaces with the kittyCard when another player orders
-     * it to them.
-     * @param dealer AI dealer of interest
-     */
-    private void cardOrderedToAI(Player dealer){
-        setAIValuesWithTrump(dealer);
-        int lowestValue = 23; // anything will be lower
-        int indexToReplace = -1;
-        for (int i=0;i<playerHandSize;i++){
-            if (dealer.hand.get(i).getAIValue() < lowestValue){
-                lowestValue = dealer.hand.get(i).getAIValue();
-                indexToReplace = i;
-            }
-        }
-        dealer.replaceCard(indexToReplace, kittyCard);
-        System.out.println(dealer.getName() + " replaced a card with the " + kittyCard.toString());
-        System.out.println();
-    }
-
-    /**
-     * cardOrdered determines what card the dealer
-     * replaces with the kittyCard when it is ordered,
-     * depending on whether the dealer is human or AI.
-     */
-    private void cardOrdered(){
-        System.out.println(dealer.getName() + " was ordered the " + kittyCard.toString() + " by " + orderer.getName());
-        if (!dealer.computer){
-            cardOrderedToHuman(dealer);
-        } else{
-            cardOrderedToAI(dealer);
-        }
-    }
-
-    /**
-     * compareCardsInPlay compares each card
-     * that is in play for a trick to
-     * determine what team wins the trick.
-     */
-    private void compareCardsInPlay(){
-        int highestValue = 0; // anything will be higher
-        CardInPlay winningCard = null;
-        for (CardInPlay card : cardsInPlay){
-            if (card.card.getEuchreValue() > highestValue){
-                highestValue = card.card.getEuchreValue();
-                winningCard = card;
-            }
-        }
-        trickWinner = winningCard.getPlayerWhoPlayed();
-        int winningTeam = winningCard.getPlayerWhoPlayed().team;
-        if (winningTeam == 1){
-            System.out.println("Team 1 wins the trick");
-            team1Tricks += 1;
-        } else{
-            System.out.println("Team 2 wins the trick");
-            team2Tricks += 1;
-        }
-        System.out.println();
     }
 
     /**
@@ -637,6 +652,36 @@ public class EuchreHand {
             return true;
         }
         return false;
+    }
+
+    /**
+     * compareCardsInPlay compares each card
+     * that is in play for a trick to
+     * determine what team wins the trick.
+     */
+    private void compareCardsInPlay(){
+        int highestValue = 0; // anything will be higher
+        CardInPlay winningCard = null;
+
+        // find the winning card out of the cards that are in play
+        for (CardInPlay card : cardsInPlay){
+            if (card.card.getEuchreValue() > highestValue){
+                highestValue = card.card.getEuchreValue();
+                winningCard = card;
+            }
+        }
+
+        // determine the winning team
+        trickWinner = winningCard.getPlayerWhoPlayed();
+        int winningTeam = trickWinner.team;
+        if (winningTeam == 1){
+            System.out.println("Team 1 wins the trick");
+            team1Tricks += 1;
+        } else{
+            System.out.println("Team 2 wins the trick");
+            team2Tricks += 1;
+        }
+        System.out.println();
     }
 
     /**
@@ -676,9 +721,10 @@ public class EuchreHand {
     private void setAIValuesWithTrump(Player player){
         for (EuchreCard card : player.hand){
             boolean cardIsTrump = card.getSuit() == trump;
-            boolean cardIsJack = card.getRank().getValue() == 11;
-            boolean cardIsLeft = card.getSuit().getColor().equals(trump.getColor()) && card.getRank().getValue() == 11;
+            boolean cardIsJack = card.getRank().getValue() == JACK_VALUE;
+            boolean cardIsLeft = card.getSuit().getColor().equals(trump.getColor()) && card.getRank().getValue() == JACK_VALUE;
 
+            // make all trump cards a higher value than any other card
             if (cardIsTrump) {
                 if (cardIsJack) {
                     card.setAIValue(22);
@@ -687,7 +733,10 @@ public class EuchreHand {
                 }
             } else if (cardIsLeft) {
                 card.setAIValue(21);
-            } else {
+            }
+
+            // other cards retain normal value
+            else {
                 card.setAIValue(card.getRank().getValue());
             }
         }
@@ -695,14 +744,15 @@ public class EuchreHand {
 
     /**
      * setOneCardValue is used to set the value
-     * of the card that is led
+     * of the card that is led, as values
+     * are usually assigned after a card is led.
      * @param card Card of interest
      */
     private void setOneCardValue(EuchreCard card){
         boolean trumpLed = led == trump;
         boolean cardIsTrump = card.getSuit() == trump;
-        boolean cardIsJack = card.getRank().getValue() == 11;
-        boolean cardIsLeft = card.getSuit().getColor().equals(trump.getColor()) && card.getRank().getValue() == 11;
+        boolean cardIsJack = card.getRank().getValue() == JACK_VALUE;
+        boolean cardIsLeft = card.getSuit().getColor().equals(trump.getColor()) && card.getRank().getValue() == JACK_VALUE;
 
         if (trumpLed) { // Trump suit is led -> No other suit has value (except Jack of the same color as trump)
             if (cardIsTrump) { // Card has the same suit as trump
@@ -746,8 +796,8 @@ public class EuchreHand {
         for (Player player : players) {
             for (EuchreCard card : player.hand) {
                 boolean cardIsTrump = card.getSuit() == trump;
-                boolean cardIsJack = card.getRank().getValue() == 11;
-                boolean cardIsLeft = card.getSuit().getColor().equals(trump.getColor()) && card.getRank().getValue() == 11;
+                boolean cardIsJack = card.getRank().getValue() == JACK_VALUE;
+                boolean cardIsLeft = card.getSuit().getColor().equals(trump.getColor()) && card.getRank().getValue() == JACK_VALUE;
 
                 if (trumpLed) { // Trump suit is led -> No other suit has value (except Jack of the same color as trump)
                     if (cardIsTrump) { // Card has the same suit as trump
